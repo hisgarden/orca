@@ -2,6 +2,8 @@ import { MIN_RELAY_BUN_VERSION } from '../../shared/relay-bun-runtime'
 import type { SshConnection } from './ssh-connection'
 import { createSshOperationAbortError } from './ssh-connection-utils'
 import type { RemoteNodeResolutionOptions } from './ssh-remote-node-install-guidance'
+import { ensureRemoteBundledBun } from './ssh-remote-bundled-bun'
+import type { RemoteHostPlatform } from './ssh-remote-platform'
 import { execCommand } from './ssh-relay-deploy-helpers'
 import { isSshSessionLimitError } from './ssh-session-limit-error'
 
@@ -54,8 +56,7 @@ export function selectRemoteBun(probeOutput: string): string | null {
   return null
 }
 
-/** Newest-enough Bun on the host, or null when none is proven usable. */
-export async function resolveRemoteBunPath(
+async function resolveHostBunPath(
   conn: SshConnection,
   options?: RemoteNodeResolutionOptions
 ): Promise<string | null> {
@@ -74,6 +75,42 @@ export async function resolveRemoteBunPath(
       throw createSshOperationAbortError()
     }
     // A failed probe only means Bun is unproven here; Node resolution still decides.
+    return null
+  }
+}
+
+/**
+ * A Bun that can run the relay: the host's own when new enough, else Orca's pinned build uploaded
+ * and verified on the host. Null means neither is proven usable, and Node resolution decides.
+ * ORCA_SSH_RELAY_RUNTIME=host skips the upload for links where ~90 MB once is too much.
+ */
+export async function resolveRemoteBunPath(
+  conn: SshConnection,
+  host: RemoteHostPlatform,
+  options?: RemoteNodeResolutionOptions
+): Promise<string | null> {
+  const hostBun = await resolveHostBunPath(conn, options)
+  if (hostBun || process.env.ORCA_SSH_RELAY_RUNTIME === 'host') {
+    return hostBun
+  }
+  try {
+    const bundled = await ensureRemoteBundledBun(conn, host, { signal: options?.signal })
+    if (bundled) {
+      console.log(`[ssh-relay] Using Orca's pinned Bun: ${bundled}`)
+    }
+    return bundled
+  } catch (err) {
+    if (options?.rethrowSessionLimitErrors && isSshSessionLimitError(err)) {
+      throw err
+    }
+    if (options?.signal?.aborted) {
+      throw createSshOperationAbortError()
+    }
+    console.warn(
+      `[ssh-relay] Pinned Bun unavailable on this host; trying Node: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    )
     return null
   }
 }

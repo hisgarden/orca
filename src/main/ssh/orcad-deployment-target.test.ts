@@ -25,6 +25,21 @@ describe('deployment C library selection', () => {
     )
   })
 
+  it('identifies glibc from its loader on hosts without ldd or getconf', async () => {
+    vi.mocked(execCommand)
+      .mockResolvedValueOnce('sh: ldd: not found')
+      .mockResolvedValueOnce('glibc\n')
+    const conn = new SshConnection(createTarget(), createCallbacks())
+    await expect(
+      resolveOrcadDeploymentTarget({ conn, host: getRemoteHostPlatform('linux-arm64') })
+    ).resolves.toBe('linux-arm64-glibc')
+    expect(execCommand).toHaveBeenLastCalledWith(
+      conn,
+      expect.stringMatching(/\/lib\/ld-linux-\*\.so\.\*.*echo glibc/),
+      expect.anything()
+    )
+  })
+
   it('never guesses when neither probe identifies the host library', async () => {
     vi.mocked(execCommand).mockResolvedValue('')
     await expect(

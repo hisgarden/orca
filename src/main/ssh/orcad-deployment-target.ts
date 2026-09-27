@@ -30,9 +30,12 @@ export async function resolveOrcadDeploymentTarget(options: {
   try {
     return `linux-${host.arch}-${parseOrcadLinuxLibc(output)}`
   } catch {
+    // Why the glibc loader check: minimal glibc images (Wolfi, distroless) ship neither ldd nor
+    // getconf, and without it they were refused the pinned runtime they can run.
     output = await exec(
-      'getconf GNU_LIBC_VERSION 2>/dev/null || ' +
-        'for loader in /lib/ld-musl-*.so.1; do [ ! -e "$loader" ] || { echo musl; break; }; done'
+      'getconf GNU_LIBC_VERSION 2>/dev/null || { ' +
+        'for loader in /lib/ld-musl-*.so.1; do [ ! -e "$loader" ] || { echo musl; exit 0; }; done; ' +
+        'for loader in /lib/ld-linux-*.so.* /lib64/ld-linux-*.so.*; do [ ! -e "$loader" ] || { echo glibc; break; }; done; }'
     )
   }
   return `linux-${host.arch}-${parseOrcadLinuxLibc(output)}`

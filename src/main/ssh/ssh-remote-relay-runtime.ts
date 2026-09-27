@@ -19,9 +19,9 @@ export async function resolveRemoteRelayRuntime(
     host !== undefined &&
     !isWindowsRemoteHost(host) &&
     process.env.ORCA_SSH_RELAY_RUNTIME !== 'node'
-  const bunPath = bunAllowed ? await resolveRemoteBunPath(conn, options) : null
+  const bunPath = bunAllowed ? await resolveRemoteBunPath(conn, host, options) : null
   if (bunPath) {
-    console.log(`[ssh-relay] Found bun via path probe: ${bunPath}`)
+    console.log(`[ssh-relay] Relay will run on Bun: ${bunPath}`)
     return { kind: 'bun', path: bunPath }
   }
   return { kind: 'node', path: await resolveRemoteNodePath(conn, host, options) }

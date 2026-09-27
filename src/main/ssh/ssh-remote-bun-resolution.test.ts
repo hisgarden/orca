@@ -4,17 +4,23 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SshConnection } from './ssh-connection'
+import { getRemoteHostPlatform } from './ssh-remote-platform'
 
 const execCommandMock = vi.hoisted(() => vi.fn())
+const ensureRemoteBundledBunMock = vi.hoisted(() => vi.fn())
 
 vi.mock('./ssh-relay-deploy-helpers', () => ({
   execCommand: execCommandMock
+}))
+vi.mock('./ssh-remote-bundled-bun', () => ({
+  ensureRemoteBundledBun: ensureRemoteBundledBunMock
 }))
 
 const { REMOTE_BUN_PROBE_SCRIPT, resolveRemoteBunPath, selectRemoteBun } =
   await import('./ssh-remote-bun-resolution')
 
 const conn: SshConnection = Object.create(null)
+const linux = getRemoteHostPlatform('linux-x64')
 
 describe('selectRemoteBun', () => {
   it('takes the first candidate at or above the Bun.Terminal floor', () => {
@@ -76,25 +82,57 @@ describe.runIf(process.platform !== 'win32')('REMOTE_BUN_PROBE_SCRIPT', () => {
 })
 
 describe('resolveRemoteBunPath', () => {
+  const savedOverride = process.env.ORCA_SSH_RELAY_RUNTIME
+
   beforeEach(() => {
     execCommandMock.mockReset()
+    ensureRemoteBundledBunMock.mockReset()
+    ensureRemoteBundledBunMock.mockResolvedValue(null)
+    delete process.env.ORCA_SSH_RELAY_RUNTIME
   })
 
-  it('returns the qualifying candidate from one exec', async () => {
+  afterEach(() => {
+    if (savedOverride === undefined) {
+      delete process.env.ORCA_SSH_RELAY_RUNTIME
+    } else {
+      process.env.ORCA_SSH_RELAY_RUNTIME = savedOverride
+    }
+  })
+
+  it('returns the host Bun from one exec and never uploads', async () => {
     execCommandMock.mockResolvedValueOnce('/home/u/.bun/bin/bun\t1.3.5\n')
-    await expect(resolveRemoteBunPath(conn)).resolves.toBe('/home/u/.bun/bin/bun')
+    await expect(resolveRemoteBunPath(conn, linux)).resolves.toBe('/home/u/.bun/bin/bun')
     expect(execCommandMock).toHaveBeenCalledTimes(1)
+    expect(ensureRemoteBundledBunMock).not.toHaveBeenCalled()
   })
 
-  it('treats a failed probe as no Bun rather than an error', async () => {
+  it("falls back to Orca's pinned Bun when the host has none", async () => {
+    execCommandMock.mockResolvedValueOnce('')
+    ensureRemoteBundledBunMock.mockResolvedValueOnce('/root/.orca-remote/vault-sqlite/abc/bun')
+    await expect(resolveRemoteBunPath(conn, linux)).resolves.toBe(
+      '/root/.orca-remote/vault-sqlite/abc/bun'
+    )
+  })
+
+  it('skips the upload when ORCA_SSH_RELAY_RUNTIME=host', async () => {
+    process.env.ORCA_SSH_RELAY_RUNTIME = 'host'
+    execCommandMock.mockResolvedValueOnce('')
+    await expect(resolveRemoteBunPath(conn, linux)).resolves.toBeNull()
+    expect(ensureRemoteBundledBunMock).not.toHaveBeenCalled()
+  })
+
+  it('treats a failed probe or upload as no Bun rather than an error', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
     execCommandMock.mockRejectedValueOnce(new Error('channel closed'))
-    await expect(resolveRemoteBunPath(conn)).resolves.toBeNull()
+    ensureRemoteBundledBunMock.mockRejectedValueOnce(new Error('download failed'))
+    await expect(resolveRemoteBunPath(conn, linux)).resolves.toBeNull()
   })
 
   it('rethrows an aborted bootstrap instead of reporting no Bun', async () => {
     const controller = new AbortController()
     controller.abort()
     execCommandMock.mockRejectedValueOnce(new Error('aborted'))
-    await expect(resolveRemoteBunPath(conn, { signal: controller.signal })).rejects.toThrow()
+    await expect(resolveRemoteBunPath(conn, linux, { signal: controller.signal })).rejects.toThrow()
+    expect(ensureRemoteBundledBunMock).not.toHaveBeenCalled()
   })
 })
