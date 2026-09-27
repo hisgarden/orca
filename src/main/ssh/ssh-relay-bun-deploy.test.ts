@@ -170,6 +170,30 @@ describe('deployAndLaunchRelay on a Bun host', () => {
     expect(resolveRemoteNodePath).not.toHaveBeenCalled()
   })
 
+  it('launches degraded and names the loader error when the watcher cannot load', async () => {
+    vi.mocked(isRelayAlreadyInstalled).mockResolvedValue(false)
+    const conn = makeMockConnection(sftpCapture)
+    feed([
+      ...makeStagedFirstInstallExecPrefix().slice(0, -1),
+      '', // bun install
+      'ORCA-NATIVE-DEPS-MISSING:@parcel/watcher\nMISSING\n',
+      'error: libstdc++.so.6: cannot open shared object file', // loader error for the warning
+      '', // clean stage root
+      'DEAD',
+      '', // publish the per-launch credential
+      'READY'
+    ])
+
+    await deployAndLaunchRelay(conn)
+
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringMatching(/BUN-WATCHER-MISSING.*libstdc\+\+\.so\.6/)
+    )
+    expect(commandsRun(conn)).toContainEqual(
+      expect.stringContaining(`${BUN} --no-install relay.js`)
+    )
+  })
+
   it('reuses a relay dir a Node deploy left behind without repairing node-pty', async () => {
     vi.mocked(isRelayAlreadyInstalled).mockResolvedValue(true)
     const conn = makeMockConnection(sftpCapture)

@@ -1594,8 +1594,16 @@ async function installBunRelayDeps(
   // Non-fatal like the Node path: without the watcher the relay still serves terminals, fs and git.
   const probe = await probeRequiredNativeDeps(conn, remoteDir, hostPlatform, runtime, signal)
   if (probe.status === 'blocked') {
+    // Why the loader error: on a minimal Bun host it is usually a missing libstdc++.so.6, which
+    // Bun itself does not need but the watcher's prebuilt does -- a one-package fix once named.
+    const cause = await execHostCommand(
+      conn,
+      hostPlatform,
+      `cd ${shellEscape(remoteDir)} && ${posixRelayRuntimeCommand(runtime)} -e 'require("@parcel/watcher")' 2>&1 | head -n 3`,
+      { signal }
+    ).catch(() => '')
     console.warn(
-      `[ssh-relay][BUN-WATCHER-MISSING] @parcel/watcher installed but require() failed under Bun at ${remoteDir}; remote file watching is unavailable`
+      `[ssh-relay][BUN-WATCHER-MISSING] @parcel/watcher installed but require() failed under Bun at ${remoteDir}; remote file watching is unavailable: ${cause.trim().slice(-300)}`
     )
   }
 }
