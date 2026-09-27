@@ -121,6 +121,11 @@ import {
 import { isFlattenedNodePtyLoaderMessage } from '../main/orcad/node-pty-loader-diagnosis'
 import { collectNodePtyUnavailableDiagnosis } from './node-pty-binding-survey'
 import {
+  createBunTerminalPtyModule,
+  getBunTerminalRuntime,
+  type RelayPtyModule
+} from './relay-bun-terminal-pty'
+import {
   formatNodePtyUnavailableMessage,
   toTerminalUnavailableCause
 } from './node-pty-unavailable-diagnosis'
@@ -527,8 +532,8 @@ export class PtyHandler {
   private pendingCreationDrainResolvers = new Set<() => void>()
   private worktreeRemovalCoordinator: RelayPtyWorktreeRemovalCoordinator | null = null
   private disposePromise: Promise<void> | null = null
-  private ptyModule: typeof NodePty | null = null
-  private ptyModuleLoadPromise: Promise<typeof NodePty | null> | null = null
+  private ptyModule: RelayPtyModule | null = null
+  private ptyModuleLoadPromise: Promise<RelayPtyModule | null> | null = null
   private reloadPtyModuleFromDisk = false
   /** The last thing `require('node-pty')` threw, kept because it is the only cause anyone has. */
   private lastPtyLoadError: unknown = null
@@ -591,7 +596,7 @@ export class PtyHandler {
     this.publishPendingExit(id)
   }
 
-  private async loadPty(): Promise<typeof NodePty | null> {
+  private async loadPty(): Promise<RelayPtyModule | null> {
     if (this.ptyModule) {
       return this.ptyModule
     }
@@ -606,7 +611,12 @@ export class PtyHandler {
     }
   }
 
-  private async loadPtyUncached(): Promise<typeof NodePty | null> {
+  private async loadPtyUncached(): Promise<RelayPtyModule | null> {
+    const bunTerminal = getBunTerminalRuntime()
+    if (bunTerminal) {
+      this.ptyModule = createBunTerminalPtyModule(bunTerminal)
+      return this.ptyModule
+    }
     if (!this.reloadPtyModuleFromDisk) {
       try {
         this.ptyModule = await import('node-pty')
