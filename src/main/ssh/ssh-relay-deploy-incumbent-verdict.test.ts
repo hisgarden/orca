@@ -38,6 +38,9 @@ vi.mock('./ssh-relay-deploy-helpers', () => ({
 vi.mock('./ssh-remote-node-resolution', () => ({
   resolveRemoteNodePath: vi.fn().mockResolvedValue('/usr/bin/node')
 }))
+vi.mock('./ssh-remote-bun-resolution', () => ({
+  resolveRemoteBunPath: vi.fn().mockResolvedValue(null)
+}))
 
 vi.mock('./ssh-relay-versioned-install', () => ({
   readLocalFullVersion: vi.fn().mockReturnValue('0.1.0+abcdef012345'),

@@ -1,3 +1,4 @@
+import { MIN_RELAY_BUN_VERSION } from '../../shared/relay-bun-runtime'
 import type { SshConnection } from './ssh-connection'
 import { createSshOperationAbortError } from './ssh-connection-utils'
 import { execCommand } from './ssh-relay-deploy-helpers'
@@ -56,9 +57,15 @@ function formatNodeInstallHints(detectedBin: string | null): string {
     ? NODE_PACKAGE_MANAGER_HINTS.find((hint) => hint.bin === detectedBin)
     : null
   const lines = [
-    'Node.js not found on remote host. Orca relay requires Node.js 18+ and npm.',
+    `Node.js not found on remote host. Orca relay requires Bun ${MIN_RELAY_BUN_VERSION}+, or Node.js 18+ and npm.`,
     '',
-    'Install Node.js 18+ with npm on the remote host, then reconnect:'
+    // Why no curl | sh: an unverified installer is exactly what this runtime choice avoids.
+    `Bun is one binary and needs no npm or C++ toolchain. Install Bun ${MIN_RELAY_BUN_VERSION}+:`,
+    '  Wolfi/Chainguard OS: sudo apk add bun',
+    '  macOS/Homebrew: brew install oven-sh/bun/bun',
+    '  Any Linux: a release from https://github.com/oven-sh/bun/releases, checked against SHASUMS256.txt',
+    '',
+    'Or install Node.js 18+ with npm on the remote host, then reconnect:'
   ]
   if (tailored) {
     lines.push(`  ${tailored.label}: ${tailored.install}`)
@@ -70,6 +77,7 @@ function formatNodeInstallHints(detectedBin: string | null): string {
   lines.push(
     '',
     'Verify the remote runtime before reconnecting:',
+    `  bun --version   # must be ${MIN_RELAY_BUN_VERSION} or newer, or:`,
     '  node --version  # must be v18 or newer',
     '  npm --version',
     '',

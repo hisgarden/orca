@@ -48,6 +48,9 @@ vi.mock('./ssh-relay-deploy-helpers', () => ({
 vi.mock('./ssh-remote-node-resolution', () => ({
   resolveRemoteNodePath: vi.fn().mockResolvedValue('/usr/bin/node')
 }))
+vi.mock('./ssh-remote-bun-resolution', () => ({
+  resolveRemoteBunPath: vi.fn().mockResolvedValue(null)
+}))
 
 // Why: the post-launch ripgrep install is fire-and-forget and would drain the queued exec mocks.
 // Why: the post-launch ripgrep cache GC is fire-and-forget and would drain the queued exec mocks.

@@ -49,6 +49,9 @@ vi.mock('./ssh-relay-deploy-helpers', () => ({
 vi.mock('./ssh-remote-node-resolution', () => ({
   resolveRemoteNodePath: vi.fn().mockResolvedValue('/usr/bin/node')
 }))
+vi.mock('./ssh-remote-bun-resolution', () => ({
+  resolveRemoteBunPath: vi.fn().mockResolvedValue(null)
+}))
 
 vi.mock('./ssh-relay-install-marker', async (importOriginal) => ({
   ...(await importOriginal<typeof RelayInstallMarkerModule>()),

@@ -530,6 +530,21 @@ describe('resolveRemoteNodePath', () => {
     await expect(resolveRemoteNodePath(conn)).rejects.toThrow(/sudo apt-get install -y nodejs npm/)
   })
 
+  it('offers Bun as the no-npm runtime, installed from verified sources only', async () => {
+    execCommandMock
+      .mockResolvedValueOnce('\n') // path probe: empty
+      .mockResolvedValueOnce('/bin/bash') // $SHELL
+      .mockResolvedValueOnce('\n') // command -v node: empty
+      .mockResolvedValueOnce('apt-get\n') // package manager hint probe
+
+    const error = await resolveRemoteNodePath(conn).catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(Error)
+    const message = error instanceof Error ? error.message : ''
+    expect(message).toMatch(/^Node\.js not found on remote host\. .*Bun 1\.3\.5\+/)
+    expect(message).toContain('SHASUMS256.txt')
+    expect(message).not.toMatch(/curl[^\n]*\|\s*(ba)?sh/)
+  })
+
   it('throws when the path-probe exec fails and the login shell finds nothing', async () => {
     execCommandMock
       .mockRejectedValueOnce(new Error('SSH exec channel failed')) // path probe errors

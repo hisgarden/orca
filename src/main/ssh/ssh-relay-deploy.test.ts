@@ -52,6 +52,9 @@ vi.mock('./ssh-relay-deploy-helpers', () => ({
 vi.mock('./ssh-remote-node-resolution', () => ({
   resolveRemoteNodePath: vi.fn().mockResolvedValue('/usr/bin/node')
 }))
+vi.mock('./ssh-remote-bun-resolution', () => ({
+  resolveRemoteBunPath: vi.fn().mockResolvedValue(null)
+}))
 
 // Why: this file mocks fs, so the real content hash cannot read a binary.
 vi.mock('../ripgrep/bundled-ripgrep-path', () => ({
